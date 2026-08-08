@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMINISTRATOR
+  CHOIR_DIRECTOR
+  CHORISTER
+}
+
+enum ServiceStatus {
+  DRAFT
+  CONFIRMED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(CHORISTER)
+  services     Service[]
+  createdAt    DateTime  @default(now())
+}
+
+model Song {
+  id                String        @id @default(uuid())
+  title             String
+  composer          String
+  voicing           String
+  difficulty        Int
+  season            String
+  language          String
+  sheetUrl          String?
+  sheetPublicId     String?
+  sheetResourceType String?
+  active            Boolean       @default(true)
+  performances      Performance[]
+  createdAt         DateTime      @default(now())
+}
+
+model EventType {
+  id              String    @id @default(uuid())
+  name            String    @unique
+  description     String?
+  defaultMinSongs Int       @default(3)
+  defaultMaxSongs Int       @default(8)
+  services        Service[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Service {
+  id           String        @id @default(uuid())
+  eventTypeId  String
+  eventType    EventType     @relation(fields: [eventTypeId], references: [id], onDelete: Restrict)
+
+  date         DateTime
+  season       String
+  status       ServiceStatus @default(DRAFT)
+
+  minSongCount Int?
+  maxSongCount Int?
+
+  deletedAt    DateTime?
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  createdById  String
+  createdBy    User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  performances Performance[]
+  planningDraft PlanningDraft?
+
+  @@index([date])
+  @@index([status])
+  @@index([status, date])
+}
+
+model Performance {
+  id            String   @id @default(uuid())
+  song          Song     @relation(fields: [songId], references: [id])
+  songId        String
+  service       Service  @relation(fields: [serviceId], references: [id])
+  serviceId     String
+  performedDate DateTime
+}
+
+model PlanningDraft {
+  id              String   @id @default(uuid())
+  serviceId       String   @unique
+  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  songIds         String[]
+  manualAdditions String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@index([serviceId])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model JobRun {
+  id                String   @id @default(uuid())
+  jobName           String
+  status            String
+  servicesProcessed Int      @default(0)
+  servicesSkipped   Int      @default(0)
+  servicesFailed    Int      @default(0)
+  dryRun            Boolean  @default(false)
+  error             String?
+  logs              Json?
+  startedAt         DateTime @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([jobName])
+  @@index([startedAt])
+}
+

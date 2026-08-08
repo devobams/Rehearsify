@@ -1,0 +1,47 @@
+{
+  "name": "rehearsify",
+  "version": "1.0.0",
+  "description": "Choir repertoire planning and recommendation platform",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test tests/**/*.test.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "prisma db seed",
+    "db:seed": "node src/db/seeds/index.js",
+    "db:test": "node src/db/testConnection.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rehearsify/rehearsify.git"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "bcrypt": "^6.0.0",
+    "cloudinary": "^2.10.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "node-cron": "^4.6.0",
+    "nodemailer": "^9.0.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
+  },
+  "prisma": {
+    "seed": "node src/db/seeds/index.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "Michael Bamidele Ipadeola, Okuo Iramofu John, John Ughiovhe Oshioriamhe",
+  "license": "UNLICENSED"
+}

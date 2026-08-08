@@ -1,0 +1,22 @@
+# Docker Compose file for Rehearsify application
+services: # this is a list of services we are configuring and running in Docker containers
+  postgres:
+    image: postgres:16-alpine # pinned version of PostgreSQL 16 on Alpine Linux for a smaller image size
+    container_name: rehearsify-db  # Assign a name to the container
+    restart: unless-stopped # Restart the container if it stops
+    environment:
+      POSTGRES_USER: rehearsify  # Set the PostgreSQL username
+      POSTGRES_PASSWORD: rehearsify_dev_password # Set the PostgreSQL dev password
+      POSTGRES_DB: rehearsify # Set the PostgreSQL database name
+    ports:
+      - "5432:5432" # Map the container's PostgreSQL port to the host machine's port
+    volumes:
+      - rehearsify_pgdata:/var/lib/postgresql/data # Mount the PostgreSQL data directory
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rehearsify"] # Check if PostgreSQL is ready to accept connections
+      interval: 5s # Check every 5 seconds
+      timeout: 5s # Timeout for the health check
+      retries: 5 # Retry 5 times before considering the container unhealthy
+
+volumes:
+  rehearsify_pgdata: # Define a named volume for PostgreSQL data persistence
