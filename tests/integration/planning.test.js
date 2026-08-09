@@ -15,10 +15,15 @@ let testSongIds = [];
 let testDraftId;
 
 async function registerAndGetToken(email, password) {
+  // Public registration always assigns CHORISTER; planning writes are
+  // director/admin-only, so promote the test user and re-issue a token.
   const res = await request(app)
     .post('/api/auth/register')
-    .send({ name: 'Test User', email, password, role: 'CHOIR_DIRECTOR' });
-  return { token: res.body.token, userId: res.body.user.id };
+    .send({ name: 'Test User', email, password });
+  const userId = res.body.user.id;
+  await prisma.user.update({ where: { id: userId }, data: { role: 'CHOIR_DIRECTOR' } });
+  const login = await request(app).post('/api/auth/login').send({ email, password });
+  return { token: login.body.token, userId };
 }
 
 async function createService(date, season = 'ORDINARY') {
@@ -41,8 +46,28 @@ async function createService(date, season = 'ORDINARY') {
 }
 
 async function seedTestSongs() {
-  const songs = await prisma.song.findMany({ take: 5 });
-  return songs.map((s) => s.id);
+  // Create our own songs instead of borrowing from the shared DB. Reading the
+  // first 5 active songs globally is racy: a parallel test file's song can sort
+  // first alphabetically, and when that file deletes it in cleanup, our draft
+  // add-songs request returns 404 ("Song not found") -> flaky clone test.
+  const base = `Planning ${Date.now()}`;
+  const letters = ['A', 'B', 'C', 'D', 'E'];
+  const ids = [];
+  for (const letter of letters) {
+    const song = await prisma.song.create({
+      data: {
+        title: `${base} ${letter}`,
+        composer: 'Test Composer',
+        voicing: 'SATB',
+        difficulty: 1,
+        season: 'ORDINARY',
+        language: 'English',
+        active: true,
+      },
+    });
+    ids.push(song.id);
+  }
+  return ids;
 }
 
 function api(method, path, body = null) {
@@ -70,6 +95,7 @@ describe('Planning Module Integration', () => {
     await prisma.planningDraft.deleteMany({
       where: { serviceId: { in: [testServiceId, testServiceId2] } },
     });
+    await prisma.song.deleteMany({ where: { id: { in: testSongIds } } });
     await prisma.service.deleteMany({ where: { createdById: { in: [testUserId, serviceCreatorId] } } });
     await prisma.user.delete({ where: { id: testUserId } }).catch(() => {});
     if (serviceCreatorId) {
