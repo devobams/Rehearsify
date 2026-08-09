@@ -42,10 +42,15 @@ const fakeTransport = {
 };
 
 async function registerAndGetToken(email, password) {
+  // Public registration always assigns CHORISTER; planning writes are
+  // director/admin-only, so promote the test user and re-issue a token.
   const res = await request(app)
     .post('/api/auth/register')
-    .send({ name: 'Test User', email, password, role: 'CHOIR_DIRECTOR' });
-  return { token: res.body.token, userId: res.body.user.id };
+    .send({ name: 'Test User', email, password });
+  const userId = res.body.user.id;
+  await prisma.user.update({ where: { id: userId }, data: { role: 'CHOIR_DIRECTOR' } });
+  const login = await request(app).post('/api/auth/login').send({ email, password });
+  return { token: login.body.token, userId };
 }
 
 async function ensureEventType() {

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import requireAuth from '../../shared/middleware/requireAuth.js';
+import requireRole from '../../shared/middleware/requireRole.js';
 import {
   createServiceHandler,
   getServiceHandler,
@@ -13,11 +14,15 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.post('/', createServiceHandler);
+// RBAC: directors/admins create and edit services; only admins delete.
+const requireManager = requireRole('ADMINISTRATOR', 'CHOIR_DIRECTOR');
+const requireAdmin = requireRole('ADMINISTRATOR');
+
+router.post('/', requireManager, createServiceHandler);
 router.get('/', listServicesHandler);
 router.get('/:id', getServiceHandler);
-router.patch('/:id', updateServiceHandler);
-router.delete('/:id', deleteServiceHandler);
-router.patch('/:id/status', updateServiceStatusHandler);
+router.patch('/:id', requireManager, updateServiceHandler);
+router.delete('/:id', requireAdmin, deleteServiceHandler);
+router.patch('/:id/status', requireManager, updateServiceStatusHandler);
 
 export default router;
