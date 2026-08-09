@@ -17,9 +17,9 @@ function signToken(user) {
 export async function register({ name, email, password}) {
   // check email isn't already taken (authModel.findUserByEmail)
   if (await authModel.findUserByEmail(email)) {
-    // throw a generic "email already taken" error
+    // Duplicate email is a resource conflict, not a client input error (409).
     const err = new Error('Email already taken');
-    err.statusCode = 400;
+    err.statusCode = 409;
     // throw the error
     throw err;
 
