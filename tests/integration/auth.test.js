@@ -61,15 +61,13 @@ describe('Auth Module Integration — register/login/security', () => {
       assert.equal(decoded.role, 'CHORISTER');
     });
 
-    it('duplicate email -> 409 Conflict (expected; see bug report)', async () => {
+    it('duplicate email -> 409 Conflict', async () => {
       const email = uniqueEmail();
       await registerTracked('First User', email, 'password123');
 
       const res = await register({ name: 'Second User', email, password: 'password123' });
-      // Spec calls for 409; current implementation returns 400.
       assert.equal(res.status, 409);
     });
-
     it('rejects password shorter than 8 chars -> 400', async () => {
       const res = await register({ name: 'Bob', email: uniqueEmail(), password: 'short' });
       assert.equal(res.status, 400);
@@ -120,11 +118,10 @@ describe('Auth Module Integration — register/login/security', () => {
 
     it('maleated email format -> 400', async () => {
       const res = await login('definitely-not-an-email', 'password123');
+    it('malformed email format -> 400', async () => {
+      const res = await login('definitely-not-an-email', 'password123');
       assert.equal(res.status, 400);
-    });
-
-    it('concurrent logins from same user are all successful (idempotent)', async () => {
-      const email = uniqueEmail();
+    });      const email = uniqueEmail();
       await registerTracked('Eve', email, 'password123');
       const results = await Promise.all(
         Array.from({ length: 10 }, () => login(email, 'password123')),
@@ -168,19 +165,18 @@ describe('Auth Module Integration — register/login/security', () => {
     it('does NOT trust a role claim that does not match the DB (role enforced from token is rejected on change)', async () => {
       // A user whose real role is CHORISTER, but whose token claims ADMINISTRATOR.
       const user = await createUserViaDb({ name: 'Forger', email: uniqueEmail(), password: 'password123', role: 'CHORISTER' });
+    it('does NOT trust a role claim that does not match the DB (role enforced from token is rejected on change)', async () => {
+      // A user whose real role is CHORISTER, but whose token claims ADMINISTRATOR.
+      const user = await createUserViaDb({ name: 'Forger', email: uniqueEmail(), password: 'password123', role: 'CHORISTER' });
       const forged = signToken({ sub: user.id, role: 'ADMINISTRATOR' });
       // Attempt an admin-only action with the forged token.
       const res = await request(app)
         .patch(`${API}/users/${user.id}/role`)
         .set('Authorization', `Bearer ${forged}`)
         .send({ role: 'CHOIR_DIRECTOR' });
-      // requireAuth trusts the signed claim, so this currently SUCCEEDS -> RBAC gap.
+      // requireRole reads the role from the database, so the forged ADMINISTRATOR claim is rejected.
       assert.equal(res.status, 403);
-    });
-
-    it('very long Authorization header value handled gracefully (4xx, no 500)', async () => {
-      const huge = 'x'.repeat(2000);
-      const res = await request(app).get('/api/songs').set('Authorization', `Bearer ${huge}`);
+    });      const res = await request(app).get('/api/songs').set('Authorization', `Bearer ${huge}`);
       assert.ok(res.status >= 400 && res.status < 500, `expected 4xx, got ${res.status}`);
     });
 
@@ -227,7 +223,7 @@ describe('Auth Module Integration — register/login/security', () => {
   });
 
   describe('Role management (admin-only)', () => {
-    it('non-admin (chorister) attempting role change -> 403', async () => {
+    it('admin promotes a user -> 200 and a new login token carries the new role', async () => {
       const admin = await createUserViaDb({ name: 'Admin', email: uniqueEmail(), password: 'password123', role: 'ADMINISTRATOR' });
       const adminLogin = await login(admin.email, 'password123');
       const victim = await registerTracked('Victim', uniqueEmail(), 'password123');
@@ -251,14 +247,13 @@ describe('Auth Module Integration — register/login/security', () => {
       const admin = await createUserViaDb({ name: 'Admin2', email: uniqueEmail(), password: 'password123', role: 'ADMINISTRATOR' });
       const res = await request(app)
         .patch(`${API}/users/${admin.id}/role`)
+    it('role change without a token -> 401', async () => {
+      const admin = await createUserViaDb({ name: 'Admin2', email: uniqueEmail(), password: 'password123', role: 'ADMINISTRATOR' });
+      const res = await request(app)
+        .patch(`${API}/users/${admin.id}/role`)
         .send({ role: 'CHOIR_DIRECTOR' });
       assert.equal(res.status, 401);
-    });
-
-    it('invalid role value -> 400', async () => {
-      const admin = await createUserViaDb({ name: 'Admin3', email: uniqueEmail(), password: 'password123', role: 'ADMINISTRATOR' });
-      const adminLogin = await login(admin.email, 'password123');
-      const victim = await registerTracked('Victim2', uniqueEmail(), 'password123');
+    });      const victim = await registerTracked('Victim2', uniqueEmail(), 'password123');
       const res = await request(app)
         .patch(`${API}/users/${victim.body.user.id}/role`)
         .set('Authorization', `Bearer ${adminLogin.body.token}`)

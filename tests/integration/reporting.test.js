@@ -123,18 +123,22 @@ describe('Reporting Module Integration (existing endpoints)', () => {
 
   describe('GET /api/reports/performance-frequency', () => {
     it('returns songs sorted by performance count descending', async () => {
-      await createSong({ title: `High Song ${Date.now()}`, performed: 5 });
-      await createSong({ title: `Low Song ${Date.now()}`, performed: 1 });
+      const high = await createSong({ title: `High Song ${Date.now()}`, performed: 5 });
+      const low = await createSong({ title: `Low Song ${Date.now()}`, performed: 1 });
 
       const res = await request(app)
         .get('/api/reports/performance-frequency')
         .set('Authorization', `Bearer ${token}`);
       assert.equal(res.status, 200);
       assert.ok(Array.isArray(res.body.data));
-      assert.equal(res.body.data[0].performanceCount, 5, 'highest count first');
-      assert.equal(res.body.data[0].performanceCount >= res.body.data[1].performanceCount, true,
-        'sorted descending');
-    });
+      const highIndex = res.body.data.findIndex((song) => song.id === high.id);
+      const lowIndex = res.body.data.findIndex((song) => song.id === low.id);
+      assert.equal(res.body.data[highIndex].performanceCount, 5);
+      assert.equal(res.body.data[lowIndex].performanceCount, 1);
+      assert.ok(highIndex < lowIndex, 'higher count should sort first');
+      for (let index = 1; index < res.body.data.length; index += 1) {
+        assert.ok(res.body.data[index - 1].performanceCount >= res.body.data[index].performanceCount);
+      }    });
 
     it('reports a count of 0 for never-performed active songs', async () => {
       const never = await createSong({ title: `Zero Song ${Date.now()}`, performed: 0 });

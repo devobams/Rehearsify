@@ -104,32 +104,44 @@ describe('RBAC / Access Control Matrix', () => {
     });
 
     it('OBSERVATION: list is NOT scoped to requester — chorister sees every service (multi-choir scoping gap)', async () => {
+      const created = [];
+      for (let i = 0; i < 3; i += 1) {
+        const svc = await createServiceViaApi(directorToken, eventTypeId, 60 + i);
+        assert.equal(svc.status, 201);
+        created.push(svc.body.data.id);
+      }
+
       const res = await request(app).get('/api/services').set('Authorization', `Bearer ${choristerToken}`);
       assert.equal(res.status, 200);
-      // There should be at least the seed director's services visible to a chorister.
-      assert.ok(res.body.data.length >= 3, 'seed services should be visible to a CHORISTER');
-    });
-  });
+      // The director's services must be visible to a CHORISTER, which shows the scoping gap.
+      const visible = res.body.data.map((s) => s.id);
+      for (const id of created) {
+        assert.ok(visible.includes(id), 'a director service should be visible to a CHORISTER');
+      }
+    });  });
 
   describe('POST /api/songs - write access (requires ADMINISTRATOR or CHOIR_DIRECTOR)', () => {
-    const songBody = {
-      title: `RBAC Song ${Date.now()}`,
-      composer: 'Test Composer',
-      voicing: 'SATB',
-      difficulty: 2,
-      season: 'ORDINARY',
-      language: 'English',
-    };
-
     it('admin can create -> 201', async () => {
       const res = await request(app)
         .post('/api/songs')
         .set('Authorization', `Bearer ${adminToken}`)
         .send(songBody);
       assert.equal(res.status, 201);
-      await prisma.song.deleteMany({ where: { id: res.body?.song?.id } }).catch(() => {});
+      const songId = res.body?.song?.id;
+      assert.ok(songId, 'expected a song id in the create response');
+      await prisma.song.delete({ where: { id: songId } });
     });
 
+    it('director can create -> 201', async () => {
+      const res = await request(app)
+        .post('/api/songs')
+        .set('Authorization', `Bearer ${directorToken}`)
+        .send(songBody);
+      assert.equal(res.status, 201);
+      const songId = res.body?.song?.id;
+      assert.ok(songId, 'expected a song id in the create response');
+      await prisma.song.delete({ where: { id: songId } });
+    });
     it('director can create -> 201', async () => {
       const res = await request(app)
         .post('/api/songs')
@@ -151,22 +163,26 @@ describe('RBAC / Access Control Matrix', () => {
   describe('POST /api/plans/draft - planning write access', () => {
     it('admin can create a draft -> 201', async () => {
       const svc = await createServiceViaApi(adminToken, eventTypeId, 35);
+      assert.equal(svc.status, 201, 'service creation should succeed before drafting');
       const res = await request(app)
         .post('/api/plans/draft')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ serviceId: svc.body.data.id });
-      createdDraftIds.push(res.body?.data?.id);
       assert.equal(res.status, 201);
+      assert.ok(res.body?.data?.id, 'draft response should include a draft id');
+      createdDraftIds.push(res.body.data.id);
     });
 
     it('director can create a draft -> 201', async () => {
       const svc = await createServiceViaApi(directorToken, eventTypeId, 36);
+      assert.equal(svc.status, 201, 'service creation should succeed before drafting');
       const res = await request(app)
         .post('/api/plans/draft')
         .set('Authorization', `Bearer ${directorToken}`)
         .send({ serviceId: svc.body.data.id });
-      createdDraftIds.push(res.body?.data?.id);
       assert.equal(res.status, 201);
+      assert.ok(res.body?.data?.id, 'draft response should include a draft id');
+      createdDraftIds.push(res.body.data.id);
     });
 
     it('chorister is forbidden -> 403 (spec matrix)', async () => {
